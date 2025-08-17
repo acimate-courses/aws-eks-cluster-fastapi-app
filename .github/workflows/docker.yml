@@ -1,0 +1,44 @@
+# .github/workflows/deploy-to-ecr.yml
+
+name: Build and Deploy to ECR
+
+on:
+  push:
+    workflow_dispatch:
+    branches:
+      - main  # Trigger only on pushes to main
+env:
+  AWS_REGION: us-east-1
+  AWS_ACCOUNT_ID: 707690426194
+  AWS_ROLE: training-github-oidc-cdk
+  ECR_REPO: eks-cluster-fastapi-app
+  IMAGE_TAG: latest
+jobs:
+  build-and-push:
+    name: Build Docker Image and Push to ECR
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write  # Required for OIDC authentication
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials using OIDC
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/${{ env.AWS_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}  # Update to your region
+
+      - name: Log in to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Docker image
+        id: image
+        shell: bash
+        run: |
+          IMAGE_URI=$${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO }}:${{ env.IMAGE_TAG }}
+          docker build -t $IMAGE_URI .
+          docker push $IMAGE_URI
